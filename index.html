@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mar de Fondo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@500;600&family=Saira+Stencil+One&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!--BODY-START-->
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand">
+      <h1>Mar de Fondo</h1>
+      <small>Batalla naval de oficina</small>
+    </div>
+    <div class="hud" id="hud" hidden>
+      <div class="hud-item"><span>Ronda</span><b id="hudRound">1</b></div>
+      <div class="hud-item storm"><span>Tormenta</span><b id="hudStorm">—</b></div>
+      <div class="clock" id="clock" aria-label="Tiempo restante">
+        <svg viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="18"></circle><circle class="arc" id="clockArc" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="0"></circle></svg>
+        <b id="clockNum">25</b>
+      </div>
+    </div>
+    <button class="icon-btn" id="soundBtn" type="button">Sonido: sí</button>
+  </header>
+
+  <main class="stage">
+    <section class="sea" id="sea" aria-label="Océano">
+      <canvas id="board"></canvas>
+      <div class="toasts" id="toasts" aria-live="polite"></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel" id="orderPanel"></section>
+      <section class="panel">
+        <h3>Tripulación <span id="readyCount"></span></h3>
+        <ul class="players" id="players"></ul>
+      </section>
+      <section class="panel chat">
+        <div class="tabs" id="chatTabs" role="tablist"></div>
+        <div class="msgs" id="msgs" aria-live="polite"></div>
+        <form id="chatForm" autocomplete="off">
+          <input id="chatInput" maxlength="200" placeholder="Escribí un mensaje" aria-label="Mensaje">
+          <button type="submit">Enviar</button>
+        </form>
+      </section>
+    </aside>
+  </main>
+
+  <div class="overlay" id="menu">
+    <div class="card">
+      <div class="title-block">
+        <h1>Mar de Fondo</h1>
+        <p>Todos contra todos en un mismo océano. Nadie sabe quién disparó, pero todos ven el humo.</p>
+      </div>
+      <div class="field">
+        <label for="nameInput">Tu nombre</label>
+        <input id="nameInput" maxlength="16" placeholder="Por ejemplo, Dani">
+      </div>
+      <div class="field">
+        <span>Rivales</span>
+        <div class="seg" id="botsSeg">
+          <button type="button" data-n="2">2</button>
+          <button type="button" data-n="3" class="on">3</button>
+          <button type="button" data-n="4">4</button>
+          <button type="button" data-n="5">5</button>
+        </div>
+      </div>
+      <div class="field">
+        <span>Ritmo</span>
+        <div class="seg" id="modeSeg">
+          <button type="button" class="on" data-mode="cafecito">Cafecito<small>25 s por ronda</small></button>
+          <button type="button" disabled data-mode="fria">Guerra Fría<small>Necesita el modo online</small></button>
+        </div>
+      </div>
+      <ul class="rules">
+        <li><b>Mapa</b><span>Un solo océano para todos. Ubicás tu flota en tu sector secreto.</span></li>
+        <li><b>Rondas</b><span>Todos eligen a la vez y las jugadas se ejecutan juntas.</span></li>
+        <li><b>Flota</b><span>Acorazado, Submarino, Fragata y Lancha. Cada barco hundido se lleva su habilidad.</span></li>
+        <li><b>Humo</b><span>Los impactos echan humo a la vista de todos. Los disparos son anónimos.</span></li>
+        <li><b>Extras</b><span>Cajas con comodines, tormenta desde la ronda 10, chat y zumbidos.</span></li>
+      </ul>
+      <button class="btn" id="startBtn" type="button">Zarpar</button>
+      <p class="note">Modo práctica contra bots, que se distraen y a veces hay que zumbarlos. El modo online con compañeros se suma en la próxima etapa.</p>
+    </div>
+  </div>
+
+  <div class="overlay" id="over" hidden>
+    <div class="card">
+      <div class="title-block">
+        <h1 id="overTitle">Fin</h1>
+        <p id="overSub"></p>
+      </div>
+      <div class="results-wrap">
+        <table class="results">
+          <thead><tr><th>Puesto</th><th>Capitán</th><th class="num">Disparos</th><th class="num">Impactos</th><th class="num">Hundidos</th></tr></thead>
+          <tbody id="overBody"></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button class="btn" id="againBtn" type="button">Otra partida</button>
+        <button class="btn ghost" id="menuBtn" type="button">Menú</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!--BODY-END-->
+<script src="js/engine.js"></script>
+<script src="js/bots.js"></script>
+<script src="js/render.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
