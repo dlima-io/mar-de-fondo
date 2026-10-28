@@ -156,10 +156,9 @@
         hl: () => '#orderPanel .act.wild',
       },
       {
-        kind: 'info', title: 'La tormenta',
-        text: 'Así se ve la tormenta. Desde la ronda 10, los bordes del mapa dañan a los barcos que quedan ahí, y cada 3 rondas avanza hacia el centro (la línea punteada marca hasta dónde llega después). Conviene no dejar barcos en las orillas.',
-        enter: () => { T.patch = v => { v.storm = 2; v.nextStorm = 3; }; ui.refreshView(); ui.R.lightning(); },
-        leave: () => { T.patch = null; ui.refreshView(); },
+        kind: 'info', title: 'Fuego cruzado',
+        text: 'Para que la partida no se estire, desde la ronda 10 empieza el fuego cruzado: el Disparo pasa a marcar 2 casillas por ronda, y suma una más cada 3 rondas, hasta 5. Para sacar una casilla, la volvés a tocar. Las habilidades y los comodines siguen igual. Arriba a la derecha ves cuántas rondas faltan.',
+        hl: () => '.hud-item.storm',
       },
       {
         kind: 'info', title: 'Si te hunden todo',

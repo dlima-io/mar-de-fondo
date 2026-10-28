@@ -4,7 +4,7 @@
   'use strict';
   const M = root.MDF;
 
-  function decide(view, rand) {
+  function decideOne(view, rand) {
     const S = view.size, me = view.me;
     const K = (x, y) => y * S + x;
     const isl = new Set(view.islands);
@@ -98,10 +98,32 @@
       if ((x + y) % 2 === 0) s += 1;
       const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => own.has(K(x + dx, y + dy)));
       if (near) s -= 2;
-      if (M.inStorm(view, x, y, view.storm)) s -= 0.5;
       if (s > bs) { bs = s; bx = x; by = y; }
     }
     return { type: 'shot', x: bx, y: by };
+  }
+
+  /* con fuego cruzado, el disparo suma casillas distintas */
+  function decide(view, rand) {
+    const o = decideOne(view, rand);
+    if (o.type !== 'shot' || !(view.shots > 1)) return o;
+    const cells = [[o.x, o.y]];
+    for (let t = 0; t < 12 && cells.length < view.shots; t++) {
+      const o2 = decideOne(view, rand);
+      if (o2.type === 'shot' && !cells.some(c => c[0] === o2.x && c[1] === o2.y)) cells.push([o2.x, o2.y]);
+    }
+    // el resto, casillas que todavía nadie tocó
+    const S = view.size, K = (x, y) => y * S + x;
+    const known = new Set(view.islands.concat(Object.keys(view.markers).map(Number)));
+    view.me.ships.forEach(sh => sh.cells.forEach(c => known.add(K(c.x, c.y))));
+    cells.forEach(([x, y]) => known.add(K(x, y)));
+    const free = [];
+    for (let k = 0; k < S * S; k++) if (!known.has(k)) free.push(k);
+    while (cells.length < view.shots && free.length) {
+      const k = free.splice(Math.floor(rand() * free.length), 1)[0];
+      cells.push([k % S, Math.floor(k / S)]);
+    }
+    return { type: 'shot', cells };
   }
 
   /* ---------- chat de los bots ---------- */
@@ -111,7 +133,7 @@
     sunkMe: ['Mi pobre {ship}...', 'Descansá en paz, {ship}.', 'Esto no queda así.'],
     sunkOther: ['Uno menos 😎', '¿Alguien vio ese humo? Era mío.', 'Ese fue mi tiro, que conste en actas.'],
     crate: ['¡Caja para mí!', 'Gracias, logística.', 'Me tocó algo lindo.'],
-    random: ['Hay mucho humo en el centro...', '¿Alianza contra el que va ganando?', 'Estoy tirando con los ojos cerrados.', 'Jajaja qué caos.', 'Alguien está muy callado...', 'Ojo con la tormenta.'],
+    random: ['Hay mucho humo en el centro...', '¿Alianza contra el que va ganando?', 'Estoy tirando con los ojos cerrados.', 'Jajaja qué caos.', 'Alguien está muy callado...', 'Ya viene el fuego cruzado...'],
     buzzed: ['¡Ya va, ya va!', 'Perdón, estaba en una call.', 'Estoy, estoy.', 'Che, no me zumbes que me asusto.', 'Volví, volví.'],
     buzzHuman: ['Dale {name}, que nos dormimos.', '{name}, ¿seguís ahí?', 'Despertate {name} 😴'],
     eliminated: ['Me hundieron todo. Ahora soy un fantasma y tengo niebla.', 'GG. Voy a molestar desde el más allá.'],

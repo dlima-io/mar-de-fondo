@@ -168,7 +168,7 @@
     R.pending = null; R.preview = null;
     refreshView();
     sys('general', `Zarpamos. ${st.game.players.length} capitanes en un océano de ${st.game.size}x${st.game.size}.`);
-    sys('general', 'Ubicá tu flota dentro de tu sector, marcado en dorado. La franja violeta de los bordes es donde llega la tormenta.');
+    sys('general', 'Ubicá tu flota dentro de tu sector, marcado en dorado.');
     if (st.tut) st.tut.start();
     else {
       later(() => botSay(randomBot(), Bots.line('start', st.rand)), 1800);
@@ -305,7 +305,7 @@
     const me = ME;
     const step = (fn, extra) => { const d = delay; later(fn, d); delay += extra == null ? 110 : extra; };
     const hits = [], misses = [];
-    let torpedoes = 0, stormHits = 0;
+    let torpedoes = 0;
 
     events.filter(e => e.type === 'torpedo').forEach(e => {
       torpedoes++;
@@ -327,13 +327,8 @@
         case 'deflect':
           step(() => R.fx('deflect', e.x, e.y));
           break;
-        case 'stormHit':
-          stormHits++;
-          step(() => R.fx('explosion', e.x, e.y), 60);
-          break;
       }
     });
-    if (stormHits) later(() => { R.lightning(); Snd.thunder(); }, 200);
     later(() => { refreshView(); }, Math.min(delay, 1400));
 
     // crónica
@@ -360,7 +355,7 @@
           break;
         case 'sunk': {
           const c = e.cells[0];
-          lines.push(e.storm ? `La tormenta hundió un ${shipName(e.ship)} en ${coord(c[0], c[1])}.` : `Se hundió un ${shipName(e.ship)} en ${coord(c[0], c[1])}.`);
+          lines.push(`Se hundió un ${shipName(e.ship)} en ${coord(c[0], c[1])}.`);
           if (e.owner === me) meEv.push(['alert', `Hundieron tu ${shipName(e.ship)}. Perdiste su habilidad.`]);
           else if (e.by.includes(me)) meEv.push(['me-only', `¡Hundiste un ${shipName(e.ship)}!`]);
           break;
@@ -391,9 +386,15 @@
           }
           break;
         case 'crateSpawn': lines.push(`Cayó una caja de suministros en ${coord(e.x, e.y)}.`); break;
-        case 'stormHit': if (e.owner === me) meEv.push(['alert', `La tormenta dañó tu ${shipName(e.ship)}.`]); break;
-        case 'stormWarning': lines.push('La tormenta llega en 2 rondas. Los bordes del mapa van a dañar a los barcos que queden ahí.'); break;
-        case 'stormAdvance': lines.push('La tormenta avanza hacia el centro.'); break;
+        case 'crossfireWarning': lines.push('En 2 rondas empieza el fuego cruzado: el Disparo pasa a marcar 2 casillas.'); break;
+        case 'crossfireStart':
+          lines.push(`¡Fuego cruzado! Desde ahora el Disparo marca ${e.shots} casillas por ronda.`);
+          later(() => { toast(`Fuego cruzado: ${e.shots} casillas por Disparo`, 'buzz'); Snd.thunder(); }, 900);
+          break;
+        case 'crossfireUp':
+          lines.push(`El fuego cruzado sube: ahora el Disparo marca ${e.shots} casillas.`);
+          later(() => toast(`Fuego cruzado: ${e.shots} casillas por Disparo`, 'buzz'), 900);
+          break;
         case 'eliminated':
           lines.push(e.pid === me ? 'Te quedaste sin flota. Ahora sos un fantasma: cada ronda podés tirar niebla.' : `${nameOf(e.pid)} se quedó sin flota y ahora es un fantasma.`);
           break;
@@ -476,6 +477,7 @@
     const o = orderFromCell(cell);
     if (!o) {
       if (st.action === 'torpedo') toast('Elegí una casilla al norte, sur, este u oeste de tu submarino.');
+      if (st.action === 'shot') { st.order = null; R.pending = null; renderPanel(); }
       return;
     }
     if (st.tut) { const err = st.tut.checkOrder(o); if (err) { toast(err); return; } }
@@ -486,7 +488,15 @@
     if (!cell) return null;
     const [x, y] = cell, g = st.game;
     switch (st.action) {
-      case 'shot': return { type: 'shot', x, y };
+      case 'shot': {
+        const n = M.shotsFor(g);
+        if (n === 1) return { type: 'shot', x, y };
+        const cells = st.order && st.order.type === 'shot' && st.order.cells ? st.order.cells.slice() : [];
+        const i = cells.findIndex(c => c[0] === x && c[1] === y);
+        if (i >= 0) cells.splice(i, 1);
+        else { cells.push([x, y]); if (cells.length > n) cells.shift(); }
+        return cells.length ? { type: 'shot', cells } : null;
+      }
       case 'salva': return { type: 'salva', x, y };
       case 'sonar': { const [ax, ay] = M.clampArea(g, x - 1, y - 1, 4); return { type: 'sonar', x: ax, y: ay }; }
       case 'misil': { const [ax, ay] = M.clampArea(g, x, y, 2); return { type: 'wild', wild: 'misil', x: ax, y: ay }; }
@@ -501,7 +511,7 @@
     if (!o) return null;
     const g = st.game;
     switch (o.type) {
-      case 'shot': return { cells: [[o.x, o.y]] };
+      case 'shot': return { cells: o.cells || [[o.x, o.y]] };
       case 'salva': return { cells: M.crossCells(g, o.x, o.y) };
       case 'sonar': return { area: { x: o.x, y: o.y, w: 4, h: 4 }, color: M.COLORS_UI.sonar };
       case 'wild': return o.wild === 'misil' ? { area: { x: o.x, y: o.y, w: 2, h: 2 }, cells: M.areaCells(g, o.x, o.y, 2, 2), color: M.COLORS_UI.signal } : null;
@@ -540,7 +550,13 @@
     if (!o) return '';
     const c = (x, y) => `<span class="coord">${coord(x, y)}</span>`;
     switch (o.type) {
-      case 'shot': return `Disparo a ${c(o.x, o.y)}`;
+      case 'shot': {
+        const cs = o.cells || [[o.x, o.y]];
+        const n = M.shotsFor(st.game);
+        const list = cs.map(([x, y]) => c(x, y));
+        const txt = list.length > 1 ? list.slice(0, -1).join(', ') + ' y ' + list[list.length - 1] : list[0];
+        return `Disparo a ${txt}${cs.length < n ? ` · te ${n - cs.length === 1 ? 'queda 1 casilla' : `quedan ${n - cs.length} casillas`}` : ''}`;
+      }
       case 'salva': return `Salva en cruz sobre ${c(o.x, o.y)}`;
       case 'sonar': return `Sonar sobre ${c(o.x, o.y)} a ${c(o.x + 3, o.y + 3)}`;
       case 'torpedo': return `Torpedo hacia ${DIR_NAMES[o.dir]}`;
@@ -669,7 +685,7 @@
     ].join('');
 
     const prompt = {
-      shot: 'Elegí una casilla para disparar',
+      shot: M.shotsFor(g) > 1 ? `Elegí ${M.shotsFor(g)} casillas para disparar` : 'Elegí una casilla para disparar',
       salva: 'Elegí el centro de la cruz',
       torpedo: 'Elegí una casilla al norte, sur, este u oeste de tu submarino',
       sonar: 'Elegí la zona de 4x4',
@@ -678,7 +694,7 @@
 
     el.innerHTML = `<h2>Tu jugada <em>R${g.round}</em></h2>
       <div class="actions">
-        <button class="act ${st.action === 'shot' ? 'on' : ''}" data-cmd="action" data-arg="shot" ${locked ? 'disabled' : ''}><b>Disparo</b><small>Una casilla</small></button>
+        <button class="act ${st.action === 'shot' ? 'on' : ''}" data-cmd="action" data-arg="shot" ${locked ? 'disabled' : ''}><b>Disparo</b><small>${M.shotsFor(g) > 1 ? `${M.shotsFor(g)} casillas · fuego cruzado` : 'Una casilla'}</small></button>
         ${ab('salva')}${ab('torpedo')}${ab('inmersion')}${ab('sonar')}
         ${wilds}
       </div>
@@ -867,8 +883,7 @@
     const g = st.game;
     if (!g) return;
     $('hudRound').textContent = st.phase === 'deploy' ? '—' : g.round;
-    const lvl = M.stormLevel(g);
-    $('hudStorm').textContent = lvl > 0 ? 'activa' : st.phase === 'deploy' ? 'ronda 10' : `en ${M.STORM_START - g.round}`;
+    $('hudStorm').textContent = st.phase !== 'deploy' && M.shotsFor(g) > 1 ? 'activo' : st.phase === 'deploy' ? `ronda ${M.CROSSFIRE_START}` : `en ${M.CROSSFIRE_START - g.round}`;
   }
 
   function refreshView() { R.setView(snapshotView()); }

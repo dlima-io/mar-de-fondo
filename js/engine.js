@@ -33,8 +33,9 @@
 
   const COLORS = ['#f2b134', '#53c6dc', '#ee6f5c', '#9bd36a', '#c49af2', '#f59ac6'];
 
-  const STORM_START = 10;   // primera ronda con tormenta
-  const STORM_EVERY = 3;    // rondas entre cada avance
+  const CROSSFIRE_START = 10;   // desde esta ronda, el disparo básico marca 2 casillas
+  const CROSSFIRE_EVERY = 3;    // y suma una más cada tantas rondas
+  const CROSSFIRE_MAX = 5;
   const CRATE_EVERY = 4;    // cada cuántas rondas cae una caja
   const CRATE_FIRST = 3;    // primera ronda con caja
 
@@ -210,15 +211,10 @@
     return !!ship && !ship.sunk && p.cooldowns[ability] === 0;
   }
 
-  function stormLevel(game, round) {
+  /* casillas que permite el disparo básico en una ronda (fuego cruzado) */
+  function shotsFor(game, round) {
     const r = round == null ? game.round : round;
-    if (r < STORM_START) return 0;
-    const maxL = Math.ceil(game.size / 2);
-    return Math.min(maxL, 1 + Math.floor((r - STORM_START) / STORM_EVERY));
-  }
-  function inStorm(game, x, y, level) {
-    const S = game.size;
-    return Math.min(x, y, S - 1 - x, S - 1 - y) < level;
+    return r < CROSSFIRE_START ? 1 : Math.min(CROSSFIRE_MAX, 2 + Math.floor((r - CROSSFIRE_START) / CROSSFIRE_EVERY));
   }
 
   function areaCells(game, x, y, w, h) {
@@ -285,7 +281,16 @@
       return null;
     }
     switch (o.type) {
-      case 'shot': return inB(o.x, o.y) ? { type: 'shot', x: o.x, y: o.y } : null;
+      case 'shot': {
+        const raw = Array.isArray(o.cells) ? o.cells : [[o.x, o.y]];
+        const cells = [], seen = new Set();
+        for (const c of raw) {
+          if (!Array.isArray(c) || !inB(c[0], c[1]) || seen.has(c[0] + ',' + c[1])) return null;
+          seen.add(c[0] + ',' + c[1]); cells.push([c[0], c[1]]);
+        }
+        if (!cells.length || cells.length > shotsFor(game)) return null;
+        return { type: 'shot', cells };
+      }
       case 'salva': return canUse(game, pid, 'salva') && inB(o.x, o.y) ? { type: 'salva', x: o.x, y: o.y } : null;
       case 'torpedo': return canUse(game, pid, 'torpedo') && ['up', 'down', 'left', 'right'].includes(o.dir) ? { type: 'torpedo', dir: o.dir } : null;
       case 'inmersion': return canUse(game, pid, 'inmersion') ? { type: 'inmersion' } : null;
@@ -356,7 +361,7 @@
     game.players.forEach(p => {
       const o = orders[p.id];
       if (!o) return;
-      if (o.type === 'shot') attacks.push({ pid: p.id, kind: 'shot', cells: [[o.x, o.y]] });
+      if (o.type === 'shot') attacks.push({ pid: p.id, kind: 'shot', cells: o.cells });
       else if (o.type === 'salva') {
         p.cooldowns.salva = ABILITIES.salva.cd + 1;
         attacks.push({ pid: p.id, kind: 'salva', cells: crossCells(game, o.x, o.y), center: [o.x, o.y] });
@@ -399,7 +404,8 @@
         const ship = owner.ships[o.si];
         const cell = ship.cells[o.ci];
         if (ship.type === 'submarino' && owner.diving) {
-          if (!cell.hit) setMarker(game, k, 'splash', r);
+          // parece agua, pero la marca se borra a las 2 rondas: ahí sigue habiendo un barco
+          if (!cell.hit && !game.markers[k]) game.markers[k] = { kind: 'splash', round: r, until: r + 2 };
           events.push({ type: 'miss', x, y, by: a.pid, kind: a.kind, dodged: o.pid });
           return;
         }
@@ -440,26 +446,6 @@
       }
     });
 
-    // 5. tormenta
-    const level = stormLevel(game, r);
-    if (level > 0) {
-      const stormHitters = new Map();
-      game.players.forEach(p => {
-        if (!p.alive) return;
-        p.ships.forEach((s, si) => {
-          if (s.sunk || (s.type === 'submarino' && p.diving)) return;
-          const exposed = s.cells.filter(c => !c.hit && inStorm(game, c.x, c.y, level));
-          if (!exposed.length) return;
-          const c = pick(exposed, rand);
-          c.hit = true; c.hitRound = r;
-          setMarker(game, key(c.x, c.y, S), 'smoke', r);
-          stormHitters.set(p.id + ':' + si, new Set());
-          events.push({ type: 'stormHit', x: c.x, y: c.y, owner: p.id, ship: s.type });
-        });
-      });
-      checkSinks(game, stormHitters, events, r, true);
-    }
-
     // 6. eliminaciones
     const aliveBefore = game.players.filter(p => p.alive).length;
     const fallen = [];
@@ -478,6 +464,7 @@
       Object.keys(p.cooldowns).forEach(k => { if (p.cooldowns[k] > 0) p.cooldowns[k]--; });
     });
     game.fogs = game.fogs.filter(f => f.until > r);
+    Object.keys(game.markers).forEach(k => { const m = game.markers[k]; if (m.until && m.until <= r) delete game.markers[k]; });
 
     const alive = game.players.filter(p => p.alive);
     if (alive.length <= 1) {
@@ -492,9 +479,9 @@
       const c = spawnCrate(game, occ, r + 1);
       if (c) events.push({ type: 'crateSpawn', x: c.x, y: c.y });
     }
-    if (r + 2 === STORM_START) events.push({ type: 'stormWarning', rounds: 2 });
-    const nextLevel = stormLevel(game, r + 1);
-    if (nextLevel > level) events.push({ type: 'stormAdvance', level: nextLevel });
+    if (r + 2 === CROSSFIRE_START) events.push({ type: 'crossfireWarning', rounds: 2 });
+    const nextShots = shotsFor(game, r + 1);
+    if (nextShots > shotsFor(game, r)) events.push({ type: r + 1 === CROSSFIRE_START ? 'crossfireStart' : 'crossfireUp', shots: nextShots });
 
     game.round = r + 1;
     return events;
@@ -513,7 +500,7 @@
     game.markers[k] = { kind, round };
   }
 
-  function checkSinks(game, hitters, events, r, byStorm) {
+  function checkSinks(game, hitters, events, r) {
     const S = game.size;
     hitters.forEach((set, k) => {
       const [pid, si] = k.split(':');
@@ -523,7 +510,7 @@
       ship.sunk = true;
       ship.cells.forEach(c => { game.markers[key(c.x, c.y, S)] = { kind: 'wreck', round: r }; });
       const by = [...set];
-      events.push({ type: 'sunk', owner: owner.id, ship: ship.type, by, storm: !!byStorm, cells: ship.cells.map(c => [c.x, c.y]) });
+      events.push({ type: 'sunk', owner: owner.id, ship: ship.type, by, cells: ship.cells.map(c => [c.x, c.y]) });
       by.forEach(b => {
         if (b === owner.id) return;
         const hp = getPlayer(game, b);
@@ -547,11 +534,10 @@
 
   function spawnCrate(game, occ, forRound) {
     const S = game.size, isl = islandSet(game);
-    const level = stormLevel(game, forRound + 1);
     const free = [];
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
       const k = key(x, y, S);
-      if (isl.has(k) || occ.has(k) || game.markers[k] || inStorm(game, x, y, level + 1)) continue;
+      if (isl.has(k) || occ.has(k) || game.markers[k]) continue;
       if (game.crates.some(c => c.x === x && c.y === y)) continue;
       free.push([x, y]);
     }
@@ -575,8 +561,8 @@
       crates: game.crates,
       fogs: game.fogs.filter(f => f.by !== pid),
       myFogs: game.fogs.filter(f => f.by === pid),
-      storm: stormLevel(game),
-      nextStorm: stormLevel(game, game.round + 1),
+      shots: shotsFor(game),
+      crossfireStart: CROSSFIRE_START,
       players: game.players.map(p => ({ id: p.id, name: p.name, color: p.color, alive: p.alive, ghost: p.ghost, isBot: p.isBot })),
       me: me && {
         id: me.id, alive: me.alive, ghost: me.ghost, sector: me.sector, ships: me.ships, cooldowns: me.cooldowns,
@@ -587,10 +573,10 @@
 
   root.MDF = root.MDF || {};
   Object.assign(root.MDF, {
-    LETTERS, SHIP_DEFS, FLEET, ABILITIES, WILDS, WILD_KEYS, COLORS, STORM_START,
+    LETTERS, SHIP_DEFS, FLEET, ABILITIES, WILDS, WILD_KEYS, COLORS, CROSSFIRE_START,
     key, coord, makeRand, shuffle, pick,
     createGame, canPlace, placeShip, placeRandom, startBattle, shipCells,
-    getPlayer, islandSet, occupancy, canUse, stormLevel, inStorm,
+    getPlayer, islandSet, occupancy, canUse, shotsFor,
     areaCells, crossCells, clampArea, torpedoPath, torpedoDirFromCell,
     validateOrder, resolveRound, viewFor,
   });

@@ -169,10 +169,6 @@
       ctx.strokeStyle = C.brass; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
       ctx.strokeRect(ox + s.x * cs + 1, oy + s.y * cs + 1, s.w * cs - 2, s.h * cs - 2);
       ctx.setLineDash([]);
-      // franja de tormenta futura
-      ctx.fillStyle = 'rgba(120,80,170,0.10)';
-      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++)
-        if (M.inStorm(v, x, y, 2)) ctx.fillRect(ox + x * cs, oy + y * cs, cs, cs);
     }
 
     this.drawIslands(ctx, v, tt);
