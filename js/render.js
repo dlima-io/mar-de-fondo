@@ -188,6 +188,7 @@
     this.drawPending(ctx, tt);
     this.drawPreview(ctx, tt);
     this.drawEffects(ctx, t);
+    this.drawCoach(ctx, tt);
     this.drawLabels(ctx, v);
 
     if (this.flash > 0) {
@@ -652,6 +653,54 @@
     }
     ctx.strokeStyle = 'rgba(224,170,69,0.4)'; ctx.lineWidth = 1;
     ctx.strokeRect(ox - 0.5, oy - 0.5, S * cs + 1, S * cs + 1);
+  };
+
+  /* marca del tutorial: anillo dorado que late y una flecha que señala */
+  Renderer.prototype.drawCoach = function (ctx, t) {
+    const c = this.coach;
+    if (!c) return;
+    const cs = this.cs;
+    const a = c.quiet ? 0.45 : 0.6 + 0.4 * Math.sin(t * 4);
+    ctx.save();
+    ctx.strokeStyle = `rgba(224,170,69,${a})`;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 4]);
+    ctx.lineDashOffset = -t * 18;
+    let tip = null;
+    if (c.area) {
+      const x = this.ox + c.area.x * cs, y = this.oy + c.area.y * cs;
+      ctx.fillStyle = 'rgba(224,170,69,0.08)';
+      ctx.fillRect(x, y, c.area.w * cs, c.area.h * cs);
+      ctx.strokeRect(x - 2, y - 2, c.area.w * cs + 4, c.area.h * cs + 4);
+      tip = [x + c.area.w * cs / 2, y - 4];
+    }
+    (c.cells || []).forEach(([x, y], i) => {
+      const [cx, cy] = this.cellCenter(x, y);
+      if (c.cross) {
+        ctx.fillStyle = 'rgba(224,170,69,0.12)';
+        M.crossCells(this.view, x, y).forEach(([qx, qy]) => ctx.fillRect(this.ox + qx * cs, this.oy + qy * cs, cs, cs));
+      }
+      ctx.beginPath(); ctx.arc(cx, cy, cs * (0.62 + 0.08 * Math.sin(t * 4)), 0, Math.PI * 2); ctx.stroke();
+      if (!i) tip = [cx, cy - cs * 0.75];
+    });
+    ctx.restore();
+    if (tip && !c.quiet) {
+      const bob = Math.sin(t * 5) * cs * 0.15;
+      const [tx, ty0] = tip, ty = ty0 - cs * 0.15 + bob;
+      ctx.fillStyle = '#e0aa45';
+      ctx.strokeStyle = 'rgba(6,18,26,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - cs * 0.42, ty - cs * 0.55);
+      ctx.lineTo(tx - cs * 0.15, ty - cs * 0.55);
+      ctx.lineTo(tx - cs * 0.15, ty - cs * 1.1);
+      ctx.lineTo(tx + cs * 0.15, ty - cs * 1.1);
+      ctx.lineTo(tx + cs * 0.15, ty - cs * 0.55);
+      ctx.lineTo(tx + cs * 0.42, ty - cs * 0.55);
+      ctx.closePath();
+      ctx.stroke(); ctx.fill();
+    }
   };
 
   root.MDF.Renderer = Renderer;

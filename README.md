@@ -23,6 +23,7 @@ No hace falta compilar nada: son archivos estáticos.
 | `js/render.js` | Dibujo del océano en canvas: agua, islas, barcos, humo, explosiones, tormenta, sonar. |
 | `js/sound.js` | Sonidos sintetizados (sin archivos de audio). |
 | `js/game.js` | Flujo de la partida, panel de órdenes, chat, zumbidos y la "mesa local" que hace de servidor. |
+| `js/tutorial.js` | Tutorial guiado de 18 pasos, que se abre con el botón **Tutorial** del menú. |
 | `build.py` | Arma una versión de un solo archivo en `dist/` (opcional). |
 
 ## Reglas que ya están implementadas

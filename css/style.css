@@ -22,6 +22,7 @@
 
 html, body { height: 100%; }
 body {
+  margin: 0;
   background: var(--abyss);
   color: var(--foam);
   font-family: var(--f-body);
@@ -346,6 +347,55 @@ button { cursor: pointer; }
 .results td.num, .results th.num { text-align: right; font-family: var(--f-mono); }
 .results-wrap { overflow-x: auto; }
 
+/* ---------- tutorial ---------- */
+.stage { position: relative; }
+.coach {
+  position: absolute;
+  left: calc((100% - 360px) / 2);
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 24px));
+  z-index: 5;
+  background: rgba(11, 30, 41, 0.97);
+  border: 1px solid var(--brass);
+  border-radius: 4px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  display: grid;
+  gap: 8px;
+}
+.coach.top { bottom: auto; top: 14px; }
+.coach.pop { animation: coachIn 0.25s ease-out; }
+@keyframes coachIn { from { opacity: 0; transform: translate(-50%, 6px); } }
+.coach-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.coach-head span { font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: var(--brass); }
+.coach-exit {
+  background: none; border: 0; padding: 2px 4px;
+  font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; color: var(--muted);
+}
+.coach-exit:hover { color: var(--foam); }
+.coach-bar { height: 3px; background: var(--line-soft); border-radius: 2px; overflow: hidden; }
+.coach-bar i { display: block; height: 100%; background: var(--brass); transition: width 0.3s; }
+.coach h3 { margin: 2px 0 0; font-family: var(--f-label); font-weight: 600; font-size: 21px; letter-spacing: 0.02em; text-wrap: balance; }
+.coach p { margin: 0; font-size: 14.5px; line-height: 1.45; color: #c8dbe0; }
+.coach p b { color: var(--foam); font-weight: 600; }
+.coach p b.c { font-family: var(--f-mono); color: var(--brass); font-weight: 600; }
+.coach-btns { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.coach-btns .btn { flex: 1 1 140px; padding: 9px 12px; }
+.coach-wait { font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px !important; color: var(--brass) !important; }
+.coach-wait::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--brass); margin-right: 8px; animation: blink 1.2s infinite; vertical-align: 1px; }
+@keyframes blink { 50% { opacity: 0.25; } }
+.coach-hl {
+  position: relative;
+  box-shadow: 0 0 0 2px var(--brass), 0 0 0 6px rgba(224, 170, 69, 0.22) !important;
+  animation: coachPulse 1.4s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes coachPulse { 50% { box-shadow: 0 0 0 2px var(--brass), 0 0 0 10px rgba(224, 170, 69, 0.05); } }
+@media (prefers-reduced-motion: reduce) {
+  .coach-hl, .coach.pop, .coach-wait::before { animation: none; }
+}
+
 /* ---------- celular ---------- */
 @media (max-width: 860px) {
   body { overflow: auto; }
@@ -354,6 +404,15 @@ button { cursor: pointer; }
   .sea { aspect-ratio: 1 / 1; max-height: 92vh; }
   .side { border-left: 0; border-top: 1px solid var(--line); overflow: visible; grid-template-rows: auto; padding-left: max(10px, env(safe-area-inset-left, 0px)); }
   .chat { min-height: 320px; }
+  .coach, .coach.top {
+    position: static;
+    transform: none;
+    width: auto;
+    margin: 10px 10px 0;
+    margin-left: max(10px, env(safe-area-inset-left, 0px));
+    margin-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+  .coach.pop { animation: none; }
   .brand small { display: none; }
   .hud { gap: 10px; }
   .card { padding: 20px; }

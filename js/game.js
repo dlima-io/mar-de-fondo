@@ -62,6 +62,7 @@
       [...$('botsSeg').children].forEach(x => x.classList.toggle('on', x === b));
     });
     $('startBtn').addEventListener('click', () => { Snd.unlock(); startGame(); });
+    $('tutBtn').addEventListener('click', () => { Snd.unlock(); startGame(true); });
     $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { Snd.unlock(); startGame(); } });
     $('againBtn').addEventListener('click', () => { $('over').hidden = true; startGame(); });
     $('menuBtn').addEventListener('click', () => { $('over').hidden = true; toMenu(); });
@@ -116,8 +117,15 @@
     R.setView(v);
   }
 
+  function endTutorial() {
+    if (st.tut) st.tut.destroy();
+    st.tut = null;
+    $('clock').hidden = false;
+  }
+
   function toMenu() {
     clearTimers();
+    endTutorial();
     st.phase = 'menu';
     $('hud').hidden = true;
     $('menu').hidden = false;
@@ -126,14 +134,18 @@
     renderPanel(); renderPlayers();
   }
 
-  function startGame() {
+  function startGame(tutorial) {
     clearTimers();
+    endTutorial();
+    $('over').hidden = true;
     const name = ($('nameInput').value.trim() || 'Vos').slice(0, 16);
     try { root.localStorage.setItem('mdf.name', name); } catch (e) { /* sin almacenamiento */ }
     st.settings.name = name;
-    const bots = M.shuffle(BOT_NAMES.filter(n => n.toLowerCase() !== name.toLowerCase()), st.rand).slice(0, st.settings.bots);
+    const pool = BOT_NAMES.filter(n => n.toLowerCase() !== name.toLowerCase());
+    const bots = tutorial ? pool.slice(0, 2) : M.shuffle(pool, st.rand).slice(0, st.settings.bots);
     const players = [{ id: ME, name, isBot: false }].concat(bots.map((n, i) => ({ id: 'p' + (i + 1), name: n, isBot: true })));
-    st.game = M.createGame({ seed: (Math.random() * 1e9) | 0, players, roundSeconds: 25 });
+    st.game = M.createGame({ seed: tutorial ? 20261028 : (Math.random() * 1e9) | 0, players, roundSeconds: 25 });
+    if (tutorial) { st.tut = M.Tutorial.create(api); $('clock').hidden = true; }
     st.game.players.forEach(p => { if (p.isBot) M.placeRandom(st.game, p.id); });
 
     st.chat = { tabs: { general: [] }, order: ['general'], active: 'general', unread: {} };
@@ -145,20 +157,40 @@
     st.phase = 'deploy';
     st.ready = {};
     st.phaseTotal = DEPLOY_SECONDS * 1000;
-    st.deadline = now() + st.phaseTotal;
+    st.deadline = st.tut ? Infinity : now() + st.phaseTotal;
     st.autoBuzzDone = false; st.botBuzzDone = true;
     st.botPlan = {};
     st.game.players.forEach(p => {
       if (!p.isBot) return;
-      st.botPlan[p.id] = { readyAt: st.rand() < 0.12 ? Infinity : now() + 3000 + st.rand() * 9000 };
+      st.botPlan[p.id] = { readyAt: st.tut ? now() + 400 : st.rand() < 0.12 ? Infinity : now() + 3000 + st.rand() * 9000 };
     });
     R.mode = 'deploy';
     R.pending = null; R.preview = null;
     refreshView();
     sys('general', `Zarpamos. ${st.game.players.length} capitanes en un océano de ${st.game.size}x${st.game.size}.`);
     sys('general', 'Ubicá tu flota dentro de tu sector, marcado en dorado. La franja violeta de los bordes es donde llega la tormenta.');
-    later(() => botSay(randomBot(), Bots.line('start', st.rand)), 1800);
-    later(() => botSay(randomBot(), Bots.line('start', st.rand)), 4200);
+    if (st.tut) st.tut.start();
+    else {
+      later(() => botSay(randomBot(), Bots.line('start', st.rand)), 1800);
+      later(() => botSay(randomBot(), Bots.line('start', st.rand)), 4200);
+    }
+    renderAll();
+  }
+
+  /* pasa de tutorial a partida normal con los mismos rivales */
+  function resumeNormal() {
+    endTutorial();
+    const g = st.game;
+    st.phaseTotal = g.roundSeconds * 1000;
+    st.deadline = now() + st.phaseTotal;
+    st.botBuzzDone = false; st.autoBuzzDone = false;
+    g.players.forEach(p => {
+      if (!p.isBot || !(p.alive || p.ghost) || st.ready[p.id]) return;
+      st.botPlan[p.id] = { readyAt: now() + 1500 + st.rand() * 9000 };
+    });
+    g.players.forEach(p => { if (p.isBot && st.ready[p.id] && !st.orders[p.id]) st.orders[p.id] = Bots.decide(M.viewFor(g, p.id), st.rand); });
+    sys('general', 'Fin del tutorial. Ahora la partida sigue en serio: 25 segundos por ronda.');
+    R.coach = null;
     renderAll();
   }
 
@@ -182,44 +214,45 @@
     st.orders = {};
     st.action = meP().alive ? 'shot' : 'fog';
     st.phaseTotal = g.roundSeconds * 1000;
-    st.deadline = now() + st.phaseTotal;
+    st.deadline = st.tut ? Infinity : now() + st.phaseTotal;
     st.botBuzzDone = false;
     st.autoBuzzDone = false;
     st.botPlan = {};
     g.players.forEach(p => {
       if (!p.isBot || !(p.alive || p.ghost)) return;
-      const hang = p.alive && st.rand() < 0.12;
-      st.botPlan[p.id] = { readyAt: hang ? Infinity : now() + (p.alive ? 1500 + st.rand() * 9000 : 1000 + st.rand() * 8000) };
+      const hang = !st.tut && p.alive && st.rand() < 0.12;
+      st.botPlan[p.id] = { readyAt: st.tut ? now() + 500 : hang ? Infinity : now() + (p.alive ? 1500 + st.rand() * 9000 : 1000 + st.rand() * 8000) };
     });
     R.pending = null;
     R.divingPreview = false;
     refreshView();
-    if (st.rand() < 0.14) later(() => botSay(randomBot(), Bots.line('random', st.rand)), 2000 + st.rand() * 8000);
+    if (!st.tut && st.rand() < 0.14) later(() => botSay(randomBot(), Bots.line('random', st.rand)), 2000 + st.rand() * 8000);
     renderAll();
+    if (st.tut) st.tut.onBeginRound();
   }
 
   function tick() {
     if (st.phase !== 'deploy' && st.phase !== 'plan') return;
     const t = now();
     const left = st.deadline - t;
-    updateClock(left);
+    if (!st.tut) updateClock(left);
 
     st.game.players.forEach(p => {
       const plan = st.botPlan[p.id];
       if (!plan || st.ready[p.id] || t < plan.readyAt) return;
-      if (st.phase === 'plan') st.orders[p.id] = Bots.decide(M.viewFor(st.game, p.id), st.rand);
+      if (st.phase === 'plan' && !st.tut) st.orders[p.id] = Bots.decide(M.viewFor(st.game, p.id), st.rand);
       st.ready[p.id] = true;
       renderPlayers();
     });
 
     // un bot apura al humano
-    if (st.phase === 'plan' && !st.botBuzzDone && t - (st.deadline - st.phaseTotal) > 12000 && meP().alive && !st.ready[ME]) {
+    if (st.phase === 'plan' && !st.tut && !st.botBuzzDone && t - (st.deadline - st.phaseTotal) > 12000 && meP().alive && !st.ready[ME]) {
       st.botBuzzDone = true;
       const b = randomBot(true);
       if (b && st.rand() < 0.5) receiveBuzz(b.id);
     }
     // zumbido automático a falta de 10 s
-    if (!st.autoBuzzDone && left <= AUTO_BUZZ_LEFT_MS) {
+    if (!st.tut && !st.autoBuzzDone && left <= AUTO_BUZZ_LEFT_MS) {
       st.autoBuzzDone = true;
       const lazy = st.game.players.filter(p => mustAnswer(p) && !st.ready[p.id]);
       if (lazy.length) {
@@ -242,16 +275,12 @@
 
   function resolve() {
     st.phase = 'resolving';
-    updateClock(0);
+    if (!st.tut) updateClock(0);
     const g = st.game;
     if (meP().alive || meP().ghost) {
       if (st.order) st.orders[ME] = st.order;
     }
-    const subFrom = {};
-    g.players.forEach(p => {
-      const s = p.ships.find(x => x.type === 'submarino');
-      if (s) subFrom[p.id] = s;
-    });
+    if (st.tut) st.tut.fillOrders(st.orders);
     const before = snapshotView();
     const roundNo = g.round;
     const events = M.resolveRound(g, st.orders);
@@ -262,8 +291,11 @@
     later(() => {
       if (st.game !== g) return;
       if (g.phase === 'over') showOver();
-      else beginRound();
-    }, dur + 900);
+      else {
+        beginRound();
+        if (st.tut) st.tut.onResolved(events);
+      }
+    }, dur + (st.tut ? 1600 : 900));
   }
 
   /* ---------- animación y crónica ---------- */
@@ -381,6 +413,7 @@
   }
 
   function botReactions(events) {
+    if (st.tut) return;
     const said = new Set();
     const say = (pid, kind, vars, p) => {
       if (said.has(pid) || st.rand() > p) return;
@@ -445,6 +478,7 @@
       if (st.action === 'torpedo') toast('Elegí una casilla al norte, sur, este u oeste de tu submarino.');
       return;
     }
+    if (st.tut) { const err = st.tut.checkOrder(o); if (err) { toast(err); return; } }
     setOrder(o);
   }
 
@@ -528,6 +562,7 @@
 
   function confirmOrder() {
     if (!st.order) return;
+    if (st.tut) { const err = st.tut.checkOrder(st.order); if (err) { toast(err); return; } }
     st.ready[ME] = true;
     st.orders[ME] = st.order;
     R.preview = null;
@@ -549,6 +584,7 @@
     }
     if (cmd === 'deployEdit') { st.ready[ME] = false; renderAll(); }
     if (cmd === 'action') {
+      if (st.tut) { const err = st.tut.checkAction(arg); if (err) { toast(err); return; } }
       const instant = { inmersion: { type: 'inmersion' }, escudo: { type: 'wild', wild: 'escudo' }, reparacion: { type: 'wild', wild: 'reparacion' }, humo: { type: 'wild', wild: 'humo' } }[arg];
       st.action = arg;
       if (instant) setOrder(instant);
@@ -559,6 +595,11 @@
   }
 
   function renderPanel() {
+    renderPanelInner();
+    if (st.tut) st.tut.decorate();
+  }
+
+  function renderPanelInner() {
     const el = $('orderPanel');
     const g = st.game;
     if (st.phase === 'menu' || !g) { el.innerHTML = '<h2>Puesto de mando</h2><p class="hint">Elegí tu nombre y la cantidad de rivales para zarpar.</p>'; return; }
@@ -679,6 +720,7 @@
         ${canBuzz ? `<button class="mini buzz" data-act="buzz" data-pid="${p.id}" title="${esc(buzzTitle)}" ${senderWait || recWait ? 'disabled' : ''}>Zumbar</button>` : ''}
       </li>`;
     }).join('');
+    if (st.tut) st.tut.decorate();
   }
 
   /* ---------- zumbidos ---------- */
@@ -692,6 +734,7 @@
     Snd.buzz();
     wakeBot(pid, true);
     renderPlayers();
+    if (st.tut) st.tut.onBuzz(pid);
   }
 
   function wakeBot(pid, talk) {
@@ -829,7 +872,11 @@
   }
 
   function refreshView() { R.setView(snapshotView()); }
-  function snapshotView() { return JSON.parse(JSON.stringify(M.viewFor(st.game, ME))); }
+  function snapshotView() {
+    const v = JSON.parse(JSON.stringify(M.viewFor(st.game, ME)));
+    if (st.tut) st.tut.patchView(v);
+    return v;
+  }
 
   function renderAll() { renderPanel(); renderPlayers(); renderHud(); }
 
@@ -855,7 +902,14 @@
   function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  else setTimeout(init, 0);
 
+  const api = {
+    st, ME, coord, nameOf, shipName,
+    get R() { return R; },
+    refreshView, renderAll, sys, botSay, toast, later,
+    startGame, toMenu, resumeNormal,
+  };
   root.MDF.debug = st;
+  root.MDF.debugView = () => R;
 })(window);

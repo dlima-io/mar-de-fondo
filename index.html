@@ -34,6 +34,7 @@
       <canvas id="board"></canvas>
       <div class="toasts" id="toasts" aria-live="polite"></div>
     </section>
+    <div class="coach" id="coach" hidden role="dialog" aria-live="polite" aria-label="Tutorial"></div>
 
     <aside class="side">
       <section class="panel" id="orderPanel"></section>
@@ -85,8 +86,11 @@
         <li><b>Humo</b><span>Los impactos echan humo a la vista de todos. Los disparos son anónimos.</span></li>
         <li><b>Extras</b><span>Cajas con comodines, tormenta desde la ronda 10, chat y zumbidos.</span></li>
       </ul>
-      <button class="btn" id="startBtn" type="button">Zarpar</button>
-      <p class="note">Modo práctica contra bots, que se distraen y a veces hay que zumbarlos. El modo online con compañeros se suma en la próxima etapa.</p>
+      <div class="row">
+        <button class="btn" id="startBtn" type="button">Zarpar</button>
+        <button class="btn ghost" id="tutBtn" type="button">Tutorial</button>
+      </div>
+      <p class="note">¿Primera vez? El tutorial es una partida guiada, sin reloj, que te muestra cada cosa paso a paso. El modo online con compañeros se suma en la próxima etapa.</p>
     </div>
   </div>
 
@@ -115,5 +119,6 @@
 <script src="js/render.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/game.js"></script>
+<script src="js/tutorial.js"></script>
 </body>
 </html>
